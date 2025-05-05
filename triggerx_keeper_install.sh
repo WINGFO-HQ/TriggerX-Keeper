@@ -338,25 +338,25 @@ setup_triggerx() {
     
     # Get VPS IP
     show_progress "Getting public IP address"
-    echo -e "${YELLOW}Running: curl -s ipinfo.io/ip${NC}"
-    PUBLIC_IPV4_ADDRESS=$(curl -s ipinfo.io/ip)
+    echo -e "${YELLOW}Running: curl -s ifconfig.me${NC}"
+    PUBLIC_IPV4_ADDRESS=$(curl -s ifconfig.me)
     echo -e "${GREEN}Your public IP: $PUBLIC_IPV4_ADDRESS${NC}"
     
-# Get Peer ID - requires manual input of private key
-show_progress "Generating peer ID"
+    # Get Peer ID - requires manual input of private key
+    show_progress "Generating peer ID"
 
-echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester inside a screen session...${NC}"
+    echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester inside a screen session...${NC}"
 
-# Run the command (assumes they are inside screen)
-othentic-cli node get-id --node-type attester
+    # Run the command (assumes they are inside screen)
+    othentic-cli node get-id --node-type attester
 
-# Wait for user to return and paste the peer ID
-echo -e "${BLUE}Now paste the Peer ID shown above and press Enter:${NC}"
-read -r PEER_ID
+    # Wait for user to return and paste the peer ID
+    echo -e "${BLUE}Now paste the Peer ID shown above and press Enter:${NC}"
+    read -r PEER_ID
 
-# Save to .env
-echo "PEER_ID=\"$PEER_ID\"" >> .env
-echo -e "${GREEN}Saved PEER
+    # Save to .env
+    echo "PEER_ID=\"$PEER_ID\"" >> .env
+    echo -e "${GREEN}Saved PEER
 
     # Create .env file
     show_progress "Creating .env configuration file"
