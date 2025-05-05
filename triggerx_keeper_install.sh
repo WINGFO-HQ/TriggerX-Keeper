@@ -188,7 +188,7 @@ install_dependencies() {
             sudo apt-get install -y nodejs
             show_success "Node.js upgraded to v22"
         else
-            show_success "Node.js $(node -v) already installed, skipping"
+            show_success "Node.js v$(node -v) already installed, skipping"
         fi
     fi
     
@@ -338,8 +338,8 @@ setup_triggerx() {
     
     # Get VPS IP
     show_progress "Getting public IP address"
-    echo -e "${YELLOW}Running: curl -s ipinfo.io/ip${NC}"
-    PUBLIC_IPV4_ADDRESS=$(curl -s ipinfo.io/ip)
+    echo -e "${YELLOW}Running: curl -s ifconfig.me${NC}"
+    PUBLIC_IPV4_ADDRESS=$(curl -s ifconfig.me)
     echo -e "${GREEN}Your public IP: $PUBLIC_IPV4_ADDRESS${NC}"
     
     # Get Peer ID - requires manual input of private key
@@ -351,96 +351,6 @@ setup_triggerx() {
     
     # Create .env file
     show_progress "Creating .env configuration file"
-    cat > .env <<EOF
-L1_RPC=$L1_RPC
-L2_RPC=$L2_RPC
-PRIVATE_KEY=$PRIVATE_KEY
-OPERATOR_ADDRESS=$OPERATOR_ADDRESS
-PUBLIC_IPV4_ADDRESS=$PUBLIC_IPV4_ADDRESS
-PEER_ID=$PEER_ID
-OPERATOR_RPC_PORT=$OPERATOR_RPC_PORT
-OPERATOR_P2P_PORT=$OPERATOR_P2P_PORT
-OPERATOR_METRICS_PORT=$OPERATOR_METRICS_PORT
-GRAFANA_PORT=$GRAFANA_PORT
-L1_CHAIN=17000
-L2_CHAIN=84532
-AVS_GOVERNANCE_ADDRESS=$GOV_CONTRACT
-ATTESTATION_CENTER_ADDRESS=0x8256F235Ed6445fb9f8177a847183A8C8CD97cF1
-PINATA_API_KEY=3e1b278b99bd95877625
-PINATA_SECRET_API_KEY=8e41503276cd848b4f95fcde1f30e325652e224e7233dcc1910e5a226675ace4
-IPFS_HOST=apricot-voluntary-fowl-585.mypinata.cloud
-OTHENTIC_BOOTSTRAP_ID=12D3KooWBNFG1QjuF3UKAKvqhdXcxh9iBmj88cM5eU2EK5Pa91KB
-OTHENTIC_CLIENT_RPC_ADDRESS=https://aggregator.triggerx.network
-HEALTH_IP_ADDRESS=https://health.triggerx.network
-EOF
-    
-    show_success "Environment configuration created"
-}xE52De62Bf743493d3c4E1ac8db40f342FEb11fEa"
-    
-    # Check if repository already exists
-    if [ -d "$KEEPER_DIR" ]; then
-        echo -e "${YELLOW}TriggerX directory already exists at $KEEPER_DIR${NC}"
-        read -p "$(echo -e "${BLUE}What would you like to do? [r]einstall, [u]pdate, or [s]kip: ${NC}")" -n 1 -r REPO_ACTION
-        echo
-        
-        case "$REPO_ACTION" in
-            [Rr]*)
-                show_progress "Reinstalling TriggerX repository"
-                rm -rf "$KEEPER_DIR"
-                git clone "$REPO_URL" "$KEEPER_DIR"
-                cd "$KEEPER_DIR"
-                cp .env.example .env
-                ;;
-            [Uu]*)
-                show_progress "Updating TriggerX repository"
-                cd "$KEEPER_DIR"
-                git fetch
-                git pull
-                ;;
-            [Ss]*)
-                show_progress "Skipping repository setup, using existing installation"
-                cd "$KEEPER_DIR"
-                ;;
-            *)
-                show_error_and_exit "Invalid option. Please restart the script."
-                ;;
-        esac
-    else
-        # Clone repository
-        show_progress "Cloning TriggerX repository"
-        git clone "$REPO_URL" "$KEEPER_DIR"
-        cd "$KEEPER_DIR"
-        cp .env.example .env
-    fi
-    
-    show_success "Repository setup completed"
-
-    # Check if .env file already exists and ask for reconfiguration
-    if [ -f "$KEEPER_DIR/.env" ] && [ "$REPO_ACTION" != "r" ]; then
-        echo -e "${YELLOW}Configuration file (.env) already exists${NC}"
-        read -p "$(echo -e "${BLUE}Would you like to reconfigure? (y/n): ${NC}")" -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            show_success "Using existing configuration"
-            return
-        fi
-    fi
-    
-    # Get VPS IP - manual step with instructions
-    show_progress "Getting public IP address"
-    echo -e "${YELLOW}Please run the following command in another terminal:${NC}"
-    echo -e "${GREEN}curl -s ifconfig.me${NC}"
-    echo -e "${YELLOW}Then copy the result and paste it below${NC}"
-    read -p "$(echo -e "${BLUE}Enter your public IP address: ${NC}")" PUBLIC_IPV4_ADDRESS
-    
-    # Get Peer ID - manual step with instructions
-    show_progress "Generating peer ID"
-    echo -e "${YELLOW}Please run the following command in another terminal:${NC}"
-    echo -e "${GREEN}othentic-cli node get-id --node-type attester${NC}"
-    echo -e "${YELLOW}Enter your private key when prompted, then copy the result and paste it below${NC}"
-    read -p "$(echo -e "${BLUE}Enter your peer ID: ${NC}")" PEER_ID
-    
-    # Create .env file
     cat > .env <<EOF
 L1_RPC=$L1_RPC
 L2_RPC=$L2_RPC
