@@ -338,16 +338,23 @@ setup_triggerx() {
     
     # Get VPS IP
     show_progress "Getting public IP address"
-    echo -e "${YELLOW}Running: curl -s ifconfig.me${NC}"
-    PUBLIC_IPV4_ADDRESS=$(curl -s ifconfig.me)
+    echo -e "${YELLOW}Running: curl -s ipinfo.io/ip${NC}"
+    PUBLIC_IPV4_ADDRESS=$(curl -s ipinfo.io/ip)
     echo -e "${GREEN}Your public IP: $PUBLIC_IPV4_ADDRESS${NC}"
     
     # Get Peer ID - requires manual input of private key
     show_progress "Generating peer ID"
-    echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester${NC}"
-    echo -e "${BLUE}Please enter your private key when prompted by the othentic-cli tool...${NC}"
-    PEER_ID=$(othentic-cli node get-id --node-type attester)
-    echo -e "${GREEN}Your peer ID: $PEER_ID${NC}"
+    echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester inside a screen session...${NC}"
+
+    # Run the command (assumes they are inside screen)
+    othentic-cli node get-id --node-type attester
+
+    # Wait for the user to paste the peer ID
+    read -r PEER_ID  # The script will wait until the user pastes and presses Enter
+
+    # Save to .env
+    echo "PEER_ID=\"$PEER_ID\"" >> .env
+    echo -e "${GREEN}Saved PEER_ID to .env: $PEER_ID${NC}"
     
     # Create .env file
     show_progress "Creating .env configuration file"
