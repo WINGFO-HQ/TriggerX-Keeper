@@ -304,10 +304,19 @@ setup_env_file() {
     
     # Get Peer ID - requires manual input of private key
     show_progress "Generating peer ID"
-    echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester${NC}"
-    echo -e "${BLUE}Please enter your private key when prompted by the othentic-cli tool...${NC}"
-    PEER_ID=$(othentic-cli node get-id --node-type attester)
+    echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester inside a screen session...${NC}"
+
+    # Run the command (assumes they are inside screen)
+    othentic-cli node get-id --node-type attester
+
+    # Wait for user to return and paste the peer ID
+    echo -e "${BLUE}Now paste the Peer ID shown above and press Enter:${NC}"
+    read -r PEER_ID
     echo -e "${GREEN}Your peer ID: $PEER_ID${NC}"
+    
+    # Save to .env
+    echo "PEER_ID=\"$PEER_ID\"" >> .env
+    echo -e "${GREEN}Saved PEER
     
     # Now open the .env file for editing
     show_progress "Editing .env file"
