@@ -16,9 +16,9 @@ This repository provides an automated installation script to set up a **TriggerX
 Run the following command to install and configure your Keeper node:
 - ✅ Using `curl`:
 ```bash
-curl -o triggerx_keeper_install.sh https://raw.githubusercontent.com/WINGFO-HQ/TriggerX-Keeper/refs/heads/main/triggerx_keeper_install.sh && chmod +x triggerx_keeper_install.sh && ./triggerx_keeper_install.sh && rm -f triggerx_keeper_install.sh
+rm -f triggerx_keeper_install.sh && curl -o triggerx_keeper_install.sh https://raw.githubusercontent.com/WINGFO-HQ/TriggerX-Keeper/refs/heads/main/triggerx_keeper_install.sh && chmod +x triggerx_keeper_install.sh && ./triggerx_keeper_install.sh && rm -f triggerx_keeper_install.sh
 ```
 - ✅ Using `wget`:
 ```bash
-wget -O triggerx_keeper_install.sh https://raw.githubusercontent.com/WINGFO-HQ/TriggerX-Keeper/refs/heads/main/triggerx_keeper_install.sh && chmod +x triggerx_keeper_install.sh && ./triggerx_keeper_install.sh && rm -f triggerx_keeper_install.sh
+rm -f triggerx_keeper_install.sh && wget -O triggerx_keeper_install.sh https://raw.githubusercontent.com/WINGFO-HQ/TriggerX-Keeper/refs/heads/main/triggerx_keeper_install.sh && chmod +x triggerx_keeper_install.sh && ./triggerx_keeper_install.sh && rm -f triggerx_keeper_install.sh
 ```
