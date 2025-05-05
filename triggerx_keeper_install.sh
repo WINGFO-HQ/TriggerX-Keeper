@@ -345,26 +345,24 @@ setup_triggerx() {
 # Get Peer ID - requires manual input of private key
 show_progress "Generating peer ID"
 
-echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester${NC}"
-echo -e "${BLUE}Please enter your private key when prompted by the othentic-cli tool...${NC}"
+echo -e "${YELLOW}Copy "othentic-cli node get-id --node-type attester" inside a screen session...${NC}"
+echo -e "${BLUE}You can now press CTRL + A + D to detach from the screen after entering the key.${NC}"
+echo -e "${BLUE}Once done, return here and paste your Peer ID below.${NC}"
 
-# Run the command and capture output
-PEER_ID_OUTPUT=$(othentic-cli node get-id --node-type attester)
+# Suggest screen session for safety
+echo -e "${CYAN}Tip: Run this in a screen session using:${NC}"
+echo -e "${CYAN}      screen -S othentic${NC}"
 
-# Optional: show the output
-echo -e "${GREEN}Command output: $PEER_ID_OUTPUT${NC}"
+# Run the command (assumes they are inside screen)
+othentic-cli node get-id --node-type attester
 
-# Extract PEER_ID if it’s part of the output like "Peer ID: abc123" or just the raw ID
-# You can adjust this based on the actual output format
-PEER_ID=$(echo "$PEER_ID_OUTPUT" | grep -oE '[a-zA-Z0-9]{32,}')
+# Wait for user to return and paste the peer ID
+echo -e "${BLUE}Now paste the Peer ID shown above and press Enter:${NC}"
+read -r PEER_ID
 
-# Confirm and write to .env
-if [[ -n "$PEER_ID" ]]; then
-  echo "PEER_ID=\"$PEER_ID\"" >> .env
-  echo -e "${GREEN}PEER_ID saved to .env: $PEER_ID${NC}"
-else
-  echo -e "${RED}Failed to extract PEER_ID from output.${NC}"
-fi
+# Save to .env
+echo "PEER_ID=\"$PEER_ID\"" >> .env
+echo -e "${GREEN}Saved PEER_ID to .env: $PEER_ID${NC}"
     
     # Create .env file
     show_progress "Creating .env configuration file"
