@@ -342,13 +342,29 @@ setup_triggerx() {
     PUBLIC_IPV4_ADDRESS=$(curl -s ifconfig.me)
     echo -e "${GREEN}Your public IP: $PUBLIC_IPV4_ADDRESS${NC}"
     
-    # Get Peer ID - requires manual input of private key
-    show_progress "Generating peer ID"
-    echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester${NC}"
-    echo -e "${BLUE}Please enter your private key when prompted by the othentic-cli tool...${NC}"
-    sleep 20  # Delay for 20 seconds to give the user time to prepare
-    PEER_ID=$(othentic-cli node get-id --node-type attester)
-    echo -e "${GREEN}Your peer ID: $PEER_ID${NC}"
+# Get Peer ID - requires manual input of private key
+show_progress "Generating peer ID"
+
+echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester${NC}"
+echo -e "${BLUE}Please enter your private key when prompted by the othentic-cli tool...${NC}"
+
+# Run the command and capture output
+PEER_ID_OUTPUT=$(othentic-cli node get-id --node-type attester)
+
+# Optional: show the output
+echo -e "${GREEN}Command output: $PEER_ID_OUTPUT${NC}"
+
+# Extract PEER_ID if it’s part of the output like "Peer ID: abc123" or just the raw ID
+# You can adjust this based on the actual output format
+PEER_ID=$(echo "$PEER_ID_OUTPUT" | grep -oE '[a-zA-Z0-9]{32,}')
+
+# Confirm and write to .env
+if [[ -n "$PEER_ID" ]]; then
+  echo "PEER_ID=\"$PEER_ID\"" >> .env
+  echo -e "${GREEN}PEER_ID saved to .env: $PEER_ID${NC}"
+else
+  echo -e "${RED}Failed to extract PEER_ID from output.${NC}"
+fi
     
     # Create .env file
     show_progress "Creating .env configuration file"
