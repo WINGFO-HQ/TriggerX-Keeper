@@ -350,15 +350,17 @@ echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester inside 
 # Run the command (assumes they are inside screen)
 othentic-cli node get-id --node-type attester
 
+# Wait for 20 seconds before asking for the Peer ID
+sleep 10
+
 # Wait for user to return and paste the peer ID
-delay 20
 echo -e "${BLUE}Now paste the Peer ID shown above and press Enter:${NC}"
 read -r PEER_ID
 
 # Save to .env
 echo "PEER_ID=\"$PEER_ID\"" >> .env
-echo -e "${GREEN}Saved PEER_ID to .env: $PEER_ID${NC}"
-  
+echo -e "${GREEN}Saved PEER
+
     # Create .env file
     show_progress "Creating .env configuration file"
     cat > .env <<EOF
