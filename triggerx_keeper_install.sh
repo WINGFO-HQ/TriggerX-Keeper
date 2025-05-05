@@ -27,7 +27,7 @@ display_banner() {
     echo "              |___/ |___/                      "
     echo ""
     echo "==============================================="
-    echo -e " ${GREEN}WINGFO TriggerX ${CYAN} Keeper Auto Installer"
+    echo -e " ${GREEN}WINGFO${CYAN} TriggerX Keeper Auto Installer"
     echo -e "==============================================${NC}"
     echo ""
 }
@@ -363,22 +363,11 @@ display_registration_guide() {
     echo -e "${CYAN}=====================================================${NC}"
 }
 
-# Main execution flow
-main() {
-    display_banner
-    
-    # Check if running as root
-    if [ "$EUID" -eq 0 ]; then
-        show_error_and_exit "Please do not run this script as root or with sudo"
-    fi
-    
-    check_system_requirements
-    install_dependencies
-    get_user_input
-    setup_triggerx
-    start_services
-    display_registration_guide
-}
-
-# Run the script
-main
+# Run the script commands
+display_banner
+check_system_requirements
+install_dependencies
+get_user_input
+setup_triggerx
+start_services
+display_registration_guide
