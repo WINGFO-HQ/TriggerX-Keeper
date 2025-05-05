@@ -346,6 +346,7 @@ setup_triggerx() {
     show_progress "Generating peer ID"
     echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester${NC}"
     echo -e "${BLUE}Please enter your private key when prompted by the othentic-cli tool...${NC}"
+    sleep 20  # Delay for 20 seconds to give the user time to prepare
     PEER_ID=$(othentic-cli node get-id --node-type attester)
     echo -e "${GREEN}Your peer ID: $PEER_ID${NC}"
     
