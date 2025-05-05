@@ -220,29 +220,6 @@ setup_env_file() {
     # Update the IP in .env
     sed -i "s|^PUBLIC_IPV4_ADDRESS=.*|PUBLIC_IPV4_ADDRESS=$PUBLIC_IPV4_ADDRESS|" "$KEEPER_DIR/.env"
     
-    # Get private key for Peer ID generation
-    echo -e "${RED}WARNING: Use a separate wallet with only the necessary funds. NEVER use your main wallet.${NC}"
-    while true; do
-        read -s -p "$(echo -e "${BLUE}Enter your PRIVATE KEY (for Peer ID generation): ${NC}")" PRIVATE_KEY
-        echo
-        if [ -z "$PRIVATE_KEY" ]; then
-            echo -e "${RED}Private key cannot be empty.${NC}"
-            continue
-        fi
-        
-        # Add 0x prefix if missing
-        if [[ ! "$PRIVATE_KEY" =~ ^0x ]]; then
-            PRIVATE_KEY="0x$PRIVATE_KEY"
-        fi
-        
-        if validate_private_key "$PRIVATE_KEY"; then
-            break
-        fi
-    done
-    
-    # Update private key in .env
-    sed -i "s|^PRIVATE_KEY=.*|PRIVATE_KEY=$PRIVATE_KEY|" "$KEEPER_DIR/.env"
-    
     # Generate Peer ID
     show_progress "Generating peer ID"
     echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester${NC}"
