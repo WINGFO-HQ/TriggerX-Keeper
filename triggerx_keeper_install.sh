@@ -338,8 +338,8 @@ setup_triggerx() {
     
     # Get VPS IP
     show_progress "Getting public IP address"
-    echo -e "${YELLOW}Running: curl -s ifconfig.me${NC}"
-    PUBLIC_IPV4_ADDRESS=$(curl -s ifconfig.me)
+    echo -e "${YELLOW}Running: curl -s ipinfo.io/ip${NC}"
+    PUBLIC_IPV4_ADDRESS=$(curl -s ipinfo.io/ip)
     echo -e "${GREEN}Your public IP: $PUBLIC_IPV4_ADDRESS${NC}"
     
     # Get Peer ID - requires manual input of private key
