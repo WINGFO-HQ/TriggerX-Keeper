@@ -246,7 +246,9 @@ setup_env_file() {
     # Generate Peer ID
     show_progress "Generating peer ID"
     echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester${NC}"
-    PEER_ID=$(othentic-cli node get-id --node-type attester)
+    
+    # Run the command
+    othentic-cli node get-id --node-type attester
     echo -e "${GREEN}Your peer ID: $PEER_ID${NC}"
     
     # Update Peer ID in .env
