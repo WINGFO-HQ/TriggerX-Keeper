@@ -188,7 +188,7 @@ install_dependencies() {
             sudo apt-get install -y nodejs
             show_success "Node.js upgraded to v22"
         else
-            show_success "Node.js v$(node -v) already installed, skipping"
+            show_success "Node.js $(node -v) already installed, skipping"
         fi
     fi
     
