@@ -170,19 +170,7 @@ install_dependencies() {
         sudo chmod +x /usr/local/bin/docker-compose
         show_success "Docker Compose installed"
     else
-        # Check Docker Compose version
-        dc_version=$(docker-compose --version | sed -E 's/.*version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/g')
-        dc_major=$(echo "$dc_version" | cut -d '.' -f 1)
-        dc_minor=$(echo "$dc_version" | cut -d '.' -f 2)
-        
-        if [ "$dc_major" -lt 2 ] || ([ "$dc_major" -eq 2 ] && [ "$dc_minor" -lt 20 ]); then
-            show_progress "Upgrading Docker Compose to v2.20.3"
-            sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
-            show_success "Docker Compose upgraded to v2.20.3"
-        else
-            show_success "Docker Compose v$dc_version already installed, skipping"
-        fi
+        show_success "Docker Compose already installed"
     fi
     
     # Install Node.js
