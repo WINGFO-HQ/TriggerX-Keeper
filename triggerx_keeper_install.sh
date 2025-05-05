@@ -133,7 +133,7 @@ install_dependencies() {
     sudo apt-get update -qq
     
     # Check and install basic dependencies
-    for pkg in git curl wget build-essential; do
+    for pkg in git curl wget build-essential nano; do
         if ! dpkg -l | grep -q "ii  $pkg "; then
             show_progress "Installing $pkg"
             sudo apt-get install -y $pkg
@@ -188,7 +188,7 @@ install_dependencies() {
             sudo apt-get install -y nodejs
             show_success "Node.js upgraded to v22"
         else
-            show_success "Node.js v$(node -v) already installed, skipping"
+            show_success "Node.js $(node -v) already installed, skipping"
         fi
     fi
     
@@ -280,6 +280,74 @@ get_user_input() {
     show_success "Configuration completed"
 }
 
+# Improved setup_env_file function
+setup_env_file() {
+    local keeper_dir="$1"
+    
+    show_progress "Setting up environment configuration"
+    
+    # First check if .env.example exists
+    if [ ! -f "$keeper_dir/.env.example" ]; then
+        show_error_and_exit ".env.example file not found in $keeper_dir"
+    fi
+    
+    # Copy the example file
+    echo -e "${BLUE}Copying .env.example to .env${NC}"
+    cp "$keeper_dir/.env.example" "$keeper_dir/.env"
+    show_success ".env.example copied to .env"
+    
+    # Get VPS IP
+    show_progress "Getting public IP address"
+    echo -e "${YELLOW}Running: curl -s ipinfo.io/ip${NC}"
+    PUBLIC_IPV4_ADDRESS=$(curl -s ipinfo.io/ip)
+    echo -e "${GREEN}Your public IP: $PUBLIC_IPV4_ADDRESS${NC}"
+    
+    # Get Peer ID - requires manual input of private key
+    show_progress "Generating peer ID"
+    echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester${NC}"
+    echo -e "${BLUE}Please enter your private key when prompted by the othentic-cli tool...${NC}"
+    PEER_ID=$(othentic-cli node get-id --node-type attester)
+    echo -e "${GREEN}Your peer ID: $PEER_ID${NC}"
+    
+    # Now open the .env file for editing
+    show_progress "Editing .env file"
+    
+    # Replace or set values in .env file
+    sed -i "s|^L1_RPC=.*|L1_RPC=$L1_RPC|" "$keeper_dir/.env"
+    sed -i "s|^L2_RPC=.*|L2_RPC=$L2_RPC|" "$keeper_dir/.env"
+    sed -i "s|^PRIVATE_KEY=.*|PRIVATE_KEY=$PRIVATE_KEY|" "$keeper_dir/.env"
+    sed -i "s|^OPERATOR_ADDRESS=.*|OPERATOR_ADDRESS=$OPERATOR_ADDRESS|" "$keeper_dir/.env"
+    sed -i "s|^PUBLIC_IPV4_ADDRESS=.*|PUBLIC_IPV4_ADDRESS=$PUBLIC_IPV4_ADDRESS|" "$keeper_dir/.env"
+    sed -i "s|^PEER_ID=.*|PEER_ID=$PEER_ID|" "$keeper_dir/.env"
+    sed -i "s|^OPERATOR_RPC_PORT=.*|OPERATOR_RPC_PORT=$OPERATOR_RPC_PORT|" "$keeper_dir/.env"
+    sed -i "s|^OPERATOR_P2P_PORT=.*|OPERATOR_P2P_PORT=$OPERATOR_P2P_PORT|" "$keeper_dir/.env"
+    sed -i "s|^OPERATOR_METRICS_PORT=.*|OPERATOR_METRICS_PORT=$OPERATOR_METRICS_PORT|" "$keeper_dir/.env"
+    sed -i "s|^GRAFANA_PORT=.*|GRAFANA_PORT=$GRAFANA_PORT|" "$keeper_dir/.env"
+    
+    # Make sure these other values are set correctly
+    sed -i "s|^L1_CHAIN=.*|L1_CHAIN=17000|" "$keeper_dir/.env"
+    sed -i "s|^L2_CHAIN=.*|L2_CHAIN=84532|" "$keeper_dir/.env"
+    sed -i "s|^AVS_GOVERNANCE_ADDRESS=.*|AVS_GOVERNANCE_ADDRESS=0xE52De62Bf743493d3c4E1ac8db40f342FEb11fEa|" "$keeper_dir/.env"
+    sed -i "s|^ATTESTATION_CENTER_ADDRESS=.*|ATTESTATION_CENTER_ADDRESS=0x8256F235Ed6445fb9f8177a847183A8C8CD97cF1|" "$keeper_dir/.env"
+    sed -i "s|^PINATA_API_KEY=.*|PINATA_API_KEY=3e1b278b99bd95877625|" "$keeper_dir/.env"
+    sed -i "s|^PINATA_SECRET_API_KEY=.*|PINATA_SECRET_API_KEY=8e41503276cd848b4f95fcde1f30e325652e224e7233dcc1910e5a226675ace4|" "$keeper_dir/.env"
+    sed -i "s|^IPFS_HOST=.*|IPFS_HOST=apricot-voluntary-fowl-585.mypinata.cloud|" "$keeper_dir/.env"
+    sed -i "s|^OTHENTIC_BOOTSTRAP_ID=.*|OTHENTIC_BOOTSTRAP_ID=12D3KooWBNFG1QjuF3UKAKvqhdXcxh9iBmj88cM5eU2EK5Pa91KB|" "$keeper_dir/.env"
+    sed -i "s|^OTHENTIC_CLIENT_RPC_ADDRESS=.*|OTHENTIC_CLIENT_RPC_ADDRESS=https://aggregator.triggerx.network|" "$keeper_dir/.env"
+    sed -i "s|^HEALTH_IP_ADDRESS=.*|HEALTH_IP_ADDRESS=https://health.triggerx.network|" "$keeper_dir/.env"
+    
+    # Offer to let the user manually edit the file if they want
+    echo -e "${YELLOW}Configuration file has been automatically updated.${NC}"
+    read -p "$(echo -e "${BLUE}Would you like to manually review and edit the .env file? (y/n): ${NC}")" -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${GREEN}Opening .env file with nano editor...${NC}"
+        nano "$keeper_dir/.env"
+    fi
+    
+    show_success "Environment configuration completed"
+}
+
 # Set up TriggerX Keeper
 setup_triggerx() {
     # Static configuration
@@ -299,7 +367,6 @@ setup_triggerx() {
                 rm -rf "$KEEPER_DIR"
                 git clone "$REPO_URL" "$KEEPER_DIR"
                 cd "$KEEPER_DIR"
-                cp .env.example .env
                 ;;
             [Uu]*)
                 show_progress "Updating TriggerX repository"
@@ -320,7 +387,6 @@ setup_triggerx() {
         show_progress "Cloning TriggerX repository"
         git clone "$REPO_URL" "$KEEPER_DIR"
         cd "$KEEPER_DIR"
-        cp .env.example .env
     fi
     
     show_success "Repository setup completed"
@@ -336,52 +402,8 @@ setup_triggerx() {
         fi
     fi
     
-    # Get VPS IP
-    show_progress "Getting public IP address"
-    echo -e "${YELLOW}Running: curl -s ipinfo.io/ip${NC}"
-    PUBLIC_IPV4_ADDRESS=$(curl -s ipinfo.io/ip)
-    echo -e "${GREEN}Your public IP: $PUBLIC_IPV4_ADDRESS${NC}"
-    
-    # Get Peer ID - requires manual input of private key
-    show_progress "Generating peer ID"
-    echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester inside a screen session...${NC}"
-
-    # Run the command (assumes they are inside screen)
-    othentic-cli node get-id --node-type attester
-
-    # Wait for the user to paste the peer ID
-    read -r PEER_ID  # The script will wait until the user pastes and presses Enter
-
-    # Save to .env
-    echo "PEER_ID=\"$PEER_ID\"" >> .env
-    echo -e "${GREEN}Saved PEER_ID to .env: $PEER_ID${NC}"
-    
-    # Create .env file
-    show_progress "Creating .env configuration file"
-    cat > .env <<EOF
-L1_RPC=$L1_RPC
-L2_RPC=$L2_RPC
-PRIVATE_KEY=$PRIVATE_KEY
-OPERATOR_ADDRESS=$OPERATOR_ADDRESS
-PUBLIC_IPV4_ADDRESS=$PUBLIC_IPV4_ADDRESS
-PEER_ID=$PEER_ID
-OPERATOR_RPC_PORT=$OPERATOR_RPC_PORT
-OPERATOR_P2P_PORT=$OPERATOR_P2P_PORT
-OPERATOR_METRICS_PORT=$OPERATOR_METRICS_PORT
-GRAFANA_PORT=$GRAFANA_PORT
-L1_CHAIN=17000
-L2_CHAIN=84532
-AVS_GOVERNANCE_ADDRESS=$GOV_CONTRACT
-ATTESTATION_CENTER_ADDRESS=0x8256F235Ed6445fb9f8177a847183A8C8CD97cF1
-PINATA_API_KEY=3e1b278b99bd95877625
-PINATA_SECRET_API_KEY=8e41503276cd848b4f95fcde1f30e325652e224e7233dcc1910e5a226675ace4
-IPFS_HOST=apricot-voluntary-fowl-585.mypinata.cloud
-OTHENTIC_BOOTSTRAP_ID=12D3KooWBNFG1QjuF3UKAKvqhdXcxh9iBmj88cM5eU2EK5Pa91KB
-OTHENTIC_CLIENT_RPC_ADDRESS=https://aggregator.triggerx.network
-HEALTH_IP_ADDRESS=https://health.triggerx.network
-EOF
-    
-    show_success "Environment configuration created"
+    # Setup the .env file
+    setup_env_file "$KEEPER_DIR"
 }
 
 # Check service status
