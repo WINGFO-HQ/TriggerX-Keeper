@@ -338,8 +338,8 @@ setup_triggerx() {
     
     # Get VPS IP
     show_progress "Getting public IP address"
-    echo -e "${YELLOW}Running: curl -s ifconfig.me${NC}"
-    PUBLIC_IPV4_ADDRESS=$(curl -s ifconfig.me)
+    echo -e "${YELLOW}Running: curl -s ipinfo.io/ip${NC}"
+    PUBLIC_IPV4_ADDRESS=$(curl -s ipinfo.io/ip)
     echo -e "${GREEN}Your public IP: $PUBLIC_IPV4_ADDRESS${NC}"
     
 # Get Peer ID - requires manual input of private key
@@ -349,9 +349,6 @@ echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester inside 
 
 # Run the command (assumes they are inside screen)
 othentic-cli node get-id --node-type attester
-
-# Wait for 20 seconds before asking for the Peer ID
-sleep 10
 
 # Wait for user to return and paste the peer ID
 echo -e "${BLUE}Now paste the Peer ID shown above and press Enter:${NC}"
