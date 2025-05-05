@@ -346,8 +346,8 @@ display_main_menu() {
         echo -e "  ${GREEN}1.${NC} Install Dependencies"
         echo -e "  ${GREEN}2.${NC} Setup TriggerX Node"
         echo -e "  ${GREEN}3.${NC} Configure .env File and Generate Peer ID"
-        echo -e "  ${GREEN}4.${NC} Start TriggerX Services"
-        echo -e "  ${GREEN}5.${NC} Register TriggerX Node"
+        echo -e "  ${GREEN}4.${NC} Register TriggerX Node"
+        echo -e "  ${GREEN}5.${NC} Start TriggerX Services"
         echo -e "  ${GREEN}6.${NC} Show Node Status"
         echo -e "  ${GREEN}7.${NC} Help"
         echo -e "  ${GREEN}0.${NC} Exit"
@@ -368,11 +368,11 @@ display_main_menu() {
                 read -p "Press Enter to continue..."
                 ;;
             4)
-                start_triggerx_services
-                read -p "Press Enter to continue..."
+                register_triggerx
                 ;;
             5)
-                register_triggerx
+                start_triggerx_services
+                read -p "Press Enter to continue..."
                 ;;
             6)
                 show_node_status
