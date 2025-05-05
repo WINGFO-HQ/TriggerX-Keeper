@@ -345,25 +345,20 @@ setup_triggerx() {
 # Get Peer ID - requires manual input of private key
 show_progress "Generating peer ID"
 
-echo -e "${YELLOW}Copy "othentic-cli node get-id --node-type attester" inside a screen session...${NC}"
-echo -e "${BLUE}You can now press CTRL + A + D to detach from the screen after entering the key.${NC}"
-echo -e "${BLUE}Once done, return here and paste your Peer ID below.${NC}"
-
-# Suggest screen session for safety
-echo -e "${CYAN}Tip: Run this in a screen session using:${NC}"
-echo -e "${CYAN}      screen -S othentic${NC}"
+echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester inside a screen session...${NC}"
 
 # Run the command (assumes they are inside screen)
 othentic-cli node get-id --node-type attester
 
 # Wait for user to return and paste the peer ID
+delay 20
 echo -e "${BLUE}Now paste the Peer ID shown above and press Enter:${NC}"
 read -r PEER_ID
 
 # Save to .env
 echo "PEER_ID=\"$PEER_ID\"" >> .env
 echo -e "${GREEN}Saved PEER_ID to .env: $PEER_ID${NC}"
-    
+  
     # Create .env file
     show_progress "Creating .env configuration file"
     cat > .env <<EOF
