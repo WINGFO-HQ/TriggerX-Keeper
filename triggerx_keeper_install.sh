@@ -127,13 +127,21 @@ check_system_requirements() {
 
 # Install dependencies
 install_dependencies() {
-    show_progress "Installing system dependencies"
+    show_progress "Checking system dependencies"
     
     # Update package lists
     sudo apt-get update -qq
     
-    # Install dependencies
-    sudo apt-get install -y git curl wget build-essential
+    # Check and install basic dependencies
+    for pkg in git curl wget build-essential; do
+        if ! dpkg -l | grep -q "ii  $pkg "; then
+            show_progress "Installing $pkg"
+            sudo apt-get install -y $pkg
+            show_success "$pkg installed"
+        else
+            echo -e "${GREEN}$pkg already installed, skipping${NC}"
+        fi
+    done
     
     # Install Docker if not already installed
     if ! command_exists docker; then
@@ -143,8 +151,16 @@ install_dependencies() {
         sudo usermod -aG docker "$USER"
         rm get-docker.sh
         show_success "Docker installed"
+        echo -e "${YELLOW}Note: You may need to log out and back in for Docker group changes to take effect${NC}"
     else
-        show_success "Docker already installed"
+        show_success "Docker already installed, skipping"
+    fi
+    
+    # Check if user is in docker group
+    if ! groups "$USER" | grep -q '\bdocker\b'; then
+        echo -e "${YELLOW}Warning: User is not in docker group. Adding now...${NC}"
+        sudo usermod -aG docker "$USER"
+        echo -e "${YELLOW}Note: You may need to log out and back in for Docker group changes to take effect${NC}"
     fi
     
     # Install Docker Compose if not already installed
@@ -154,12 +170,24 @@ install_dependencies() {
         sudo chmod +x /usr/local/bin/docker-compose
         show_success "Docker Compose installed"
     else
-        show_success "Docker Compose already installed"
+        # Check Docker Compose version
+        dc_version=$(docker-compose --version | sed -E 's/.*version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/g')
+        dc_major=$(echo "$dc_version" | cut -d '.' -f 1)
+        dc_minor=$(echo "$dc_version" | cut -d '.' -f 2)
+        
+        if [ "$dc_major" -lt 2 ] || ([ "$dc_major" -eq 2 ] && [ "$dc_minor" -lt 20 ]); then
+            show_progress "Upgrading Docker Compose to v2.20.3"
+            sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.3/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            show_success "Docker Compose upgraded to v2.20.3"
+        else
+            show_success "Docker Compose v$dc_version already installed, skipping"
+        fi
     fi
     
     # Install Node.js
     if ! command_exists node; then
-        show_progress "Installing Node.js"
+        show_progress "Installing Node.js v22.x"
         curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
         sudo apt-get install -y nodejs
         show_success "Node.js installed"
@@ -172,13 +200,18 @@ install_dependencies() {
             sudo apt-get install -y nodejs
             show_success "Node.js upgraded to v22"
         else
-            show_success "Node.js v22+ already installed"
+            show_success "Node.js v$(node -v) already installed, skipping"
         fi
     fi
     
     # Install Othentic CLI
-    show_progress "Installing Othentic CLI"
-    npm install -g @othentic/othentic-cli@1.10.0
+    if ! command_exists othentic-cli || [[ $(othentic-cli --version 2>/dev/null | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+' | head -1) != "1.10.0" ]]; then
+        show_progress "Installing Othentic CLI v1.10.0"
+        npm install -g @othentic/othentic-cli@1.10.0
+        show_success "Othentic CLI v1.10.0 installed"
+    else
+        show_success "Othentic CLI v1.10.0 already installed, skipping"
+    fi
     
     show_success "All dependencies installed successfully"
 }
@@ -206,7 +239,7 @@ get_user_input() {
     # Get private key with warning
     echo -e "${RED}WARNING: Use a separate wallet with only the necessary funds. NEVER use your main wallet.${NC}"
     while true; do
-        read -s -p "$(echo -e "${BLUE}Enter your PRIVATE KEY (0x...): ${NC}")" PRIVATE_KEY
+        read -s -p "$(echo -e "${BLUE}Enter your PRIVATE KEY (EVM or ETH Private Key): ${NC}")" PRIVATE_KEY
         echo
         if [ -z "$PRIVATE_KEY" ]; then
             echo -e "${RED}Private key cannot be empty.${NC}"
@@ -246,7 +279,7 @@ get_user_input() {
     
     # Check if ports are available
     for port in "$OPERATOR_RPC_PORT" "$OPERATOR_P2P_PORT" "$OPERATOR_METRICS_PORT" "$GRAFANA_PORT"; do
-        if netstat -tuln | grep -q ":$port "; then
+        if netstat -tuln 2>/dev/null | grep -q ":$port " || ss -tuln 2>/dev/null | grep -q ":$port "; then
             echo -e "${RED}Warning: Port $port is already in use. This may cause conflicts.${NC}"
             read -p "Continue anyway? (y/n) " -n 1 -r
             echo
@@ -266,27 +299,59 @@ setup_triggerx() {
     REPO_URL="https://github.com/trigg3rX/triggerx-keeper-setup.git"
     GOV_CONTRACT="0xE52De62Bf743493d3c4E1ac8db40f342FEb11fEa"
     
-    # Clone repository
-    show_progress "Cloning TriggerX repository"
+    # Check if repository already exists
     if [ -d "$KEEPER_DIR" ]; then
-        read -p "$(echo -e "${YELLOW}Directory $KEEPER_DIR already exists. Delete and reinstall? (y/n) ${NC}")" -n 1 -r
+        echo -e "${YELLOW}TriggerX directory already exists at $KEEPER_DIR${NC}"
+        read -p "$(echo -e "${BLUE}What would you like to do? [r]einstall, [u]pdate, or [s]kip: ${NC}")" -n 1 -r REPO_ACTION
         echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            rm -rf "$KEEPER_DIR"
-        else
-            show_error_and_exit "Installation aborted. Please backup or delete the existing directory."
-        fi
+        
+        case "$REPO_ACTION" in
+            [Rr]*)
+                show_progress "Reinstalling TriggerX repository"
+                rm -rf "$KEEPER_DIR"
+                git clone "$REPO_URL" "$KEEPER_DIR"
+                cd "$KEEPER_DIR"
+                cp .env.example .env
+                ;;
+            [Uu]*)
+                show_progress "Updating TriggerX repository"
+                cd "$KEEPER_DIR"
+                git fetch
+                git pull
+                ;;
+            [Ss]*)
+                show_progress "Skipping repository setup, using existing installation"
+                cd "$KEEPER_DIR"
+                ;;
+            *)
+                show_error_and_exit "Invalid option. Please restart the script."
+                ;;
+        esac
+    else
+        # Clone repository
+        show_progress "Cloning TriggerX repository"
+        git clone "$REPO_URL" "$KEEPER_DIR"
+        cd "$KEEPER_DIR"
+        cp .env.example .env
     fi
     
-    git clone "$REPO_URL" "$KEEPER_DIR"
-    cd "$KEEPER_DIR"
-    cp .env.example .env
-    show_success "Repository cloned successfully"
+    show_success "Repository setup completed"
+
+    # Check if .env file already exists and ask for reconfiguration
+    if [ -f "$KEEPER_DIR/.env" ] && [ "$REPO_ACTION" != "r" ]; then
+        echo -e "${YELLOW}Configuration file (.env) already exists${NC}"
+        read -p "$(echo -e "${BLUE}Would you like to reconfigure? (y/n): ${NC}")" -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            show_success "Using existing configuration"
+            return
+        fi
+    fi
     
     # Get VPS IP and Peer ID
     show_progress "Generating node configuration"
     PUBLIC_IPV4_ADDRESS=$(curl -s ifconfig.me)
-    PEER_ID=$(othentic-cli node get-id --node-type attester | grep -oE '12D3.*')
+    PEER_ID=$(othentic-cli node get-id --node-type attester)
     
     # Create .env file
     cat > .env <<EOF
@@ -315,22 +380,81 @@ EOF
     show_success "Environment configuration created"
 }
 
+# Check service status
+check_service_status() {
+    local service_name="$1"
+    
+    if docker ps --format '{{.Names}}' | grep -q "$service_name"; then
+        return 0 # Service is running
+    else
+        return 1 # Service is not running
+    fi
+}
+
 # Install and start services
 start_services() {
-    show_progress "Installing TriggerX services"
-    ./triggerx.sh install
+    # Check if services are already running
+    if check_service_status "triggerx-keeper"; then
+        echo -e "${YELLOW}TriggerX Keeper is already running${NC}"
+        read -p "$(echo -e "${BLUE}Would you like to restart the services? (y/n): ${NC}")" -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            show_progress "Stopping TriggerX services"
+            ./triggerx.sh stop
+            
+            show_progress "Installing and restarting TriggerX services"
+            ./triggerx.sh install
+            ./triggerx.sh start
+        else
+            show_success "Keeping existing TriggerX services running"
+        fi
+    else
+        show_progress "Installing TriggerX services"
+        ./triggerx.sh install
+        
+        show_progress "Starting TriggerX node"
+        ./triggerx.sh start
+    fi
     
-    show_progress "Starting TriggerX node"
-    ./triggerx.sh start
-    
-    show_progress "Starting monitoring services"
-    ./triggerx.sh start-mon
+    # Check if monitoring services are running
+    if check_service_status "triggerx-prometheus" || check_service_status "triggerx-grafana"; then
+        echo -e "${YELLOW}Monitoring services are already running${NC}"
+        read -p "$(echo -e "${BLUE}Would you like to restart the monitoring services? (y/n): ${NC}")" -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            show_progress "Stopping monitoring services"
+            ./triggerx.sh stop-mon
+            
+            show_progress "Starting monitoring services"
+            ./triggerx.sh start-mon
+        else
+            show_success "Keeping existing monitoring services running"
+        fi
+    else
+        show_progress "Starting monitoring services"
+        ./triggerx.sh start-mon
+    fi
     
     show_success "TriggerX Keeper node is now running!"
 }
 
 # Display registration guide
 display_registration_guide() {
+    # Get IP address and Grafana port from .env file if not set
+    if [ -z "$PUBLIC_IPV4_ADDRESS" ]; then
+        PUBLIC_IPV4_ADDRESS=$(grep "PUBLIC_IPV4_ADDRESS" .env | cut -d '=' -f2)
+    fi
+    
+    if [ -z "$GRAFANA_PORT" ]; then
+        GRAFANA_PORT=$(grep "GRAFANA_PORT" .env | cut -d '=' -f2)
+    fi
+    
+    if [ -z "$GOV_CONTRACT" ]; then
+        GOV_CONTRACT="0xE52De62Bf743493d3c4E1ac8db40f342FEb11fEa"
+    fi
+    
     echo ""
     echo -e "${CYAN}=====================================================${NC}"
     echo -e "${GREEN}✅ TriggerX Keeper Node Setup Complete!${NC}"
@@ -361,13 +485,24 @@ display_registration_guide() {
     echo -e "   ${GREEN}https://docs.othentic.xyz/main/avs-framework/othentic-cli/private-key-management${NC}"
     echo ""
     echo -e "${CYAN}=====================================================${NC}"
+    echo -e "${BLUE}🔄 Node Management Commands:${NC}"
+    echo -e "   ${GREEN}cd ~/triggerx && ./triggerx.sh status${NC} (Check node status)"
+    echo -e "   ${GREEN}cd ~/triggerx && ./triggerx.sh stop${NC} (Stop node)"
+    echo -e "   ${GREEN}cd ~/triggerx && ./triggerx.sh start${NC} (Start node)"
+    echo -e "   ${GREEN}cd ~/triggerx && ./triggerx.sh restart${NC} (Restart node)"
+    echo -e "${CYAN}=====================================================${NC}"
 }
 
-# Run the script commands
-display_banner
-check_system_requirements
-install_dependencies
-get_user_input
-setup_triggerx
-start_services
-display_registration_guide
+# Main function
+main() {
+    display_banner
+    check_system_requirements
+    install_dependencies
+    get_user_input
+    setup_triggerx
+    start_services
+    display_registration_guide
+}
+
+# Run the script
+main
