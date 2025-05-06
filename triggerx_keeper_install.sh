@@ -188,7 +188,7 @@ install_dependencies() {
             sudo apt-get install -y nodejs
             show_success "Node.js upgraded to v22"
         else
-            show_success "Node.js v$(node -v) already installed, skipping"
+            show_success "Node.js $(node -v) already installed, skipping"
         fi
     fi
     
@@ -470,14 +470,16 @@ setup_env_file() {
 
     # Get VPS IP
     show_progress "Getting public IP address"
-    echo -e "${YELLOW}Running: curl -s ifconfig.me${NC}"
-    PUBLIC_IPV4_ADDRESS=$(curl -s ifconfig.me)
+    echo -e "${YELLOW}Running: curl -s ipinfo.io/ip${NC}"
+    PUBLIC_IPV4_ADDRESS=$(curl -s ipinfo.io/ip)
     echo -e "${GREEN}Your public IP: $PUBLIC_IPV4_ADDRESS${NC}"
     
     # Get Peer ID - requires manual input of private key
     show_progress "Generating peer ID"
     echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester${NC}"
-    echo -e "${BLUE}Please enter your private key when prompted by the othentic-cli tool...${NC}"
+    # Run the command
+    othentic-cli node get-id --node-type attester
+
     PEER_ID=$(othentic-cli node get-id --node-type attester)
     echo -e "${GREEN}Your peer ID: $PEER_ID${NC}"
     
