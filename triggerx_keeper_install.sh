@@ -12,12 +12,6 @@ MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Global variables
-KEEPER_DIR="$HOME/triggerx"
-REPO_URL="https://github.com/trigg3rX/triggerx-keeper-setup.git"
-GOV_CONTRACT="0xE52De62Bf743493d3c4E1ac8db40f342FEb11fEa"
-PRIVATE_KEY=""
-
 # Banner function
 display_banner() {
     clear
@@ -33,7 +27,7 @@ display_banner() {
     echo "              |___/ |___/                      "
     echo ""
     echo "==============================================="
-    echo -e " ${GREEN}WINGFO${CYAN} TriggerX Keeper Menu Installer"
+    echo -e " ${GREEN}WINGFO${CYAN} TriggerX Keeper Auto Installer"
     echo -e "==============================================${NC}"
     echo ""
 }
@@ -57,12 +51,22 @@ show_error_and_exit() {
     exit 1
 }
 
-# Command exists check
+# Check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# Validate private key format
+# Check for ethereum address format
+validate_eth_address() {
+    local address="$1"
+    if [[ ! "$address" =~ ^0x[a-fA-F0-9]{40}$ ]]; then
+        echo -e "${RED}Invalid Ethereum address format. It should be 0x followed by 40 hex characters.${NC}"
+        return 1
+    fi
+    return 0
+}
+
+# Check for private key format
 validate_private_key() {
     local pkey="$1"
     # Simple check for hexadecimal format with 0x prefix and 64 hex chars
@@ -73,6 +77,54 @@ validate_private_key() {
     return 0
 }
 
+# Validate URL endpoints
+validate_rpc_endpoint() {
+    local rpc="$1"
+    if [[ ! "$rpc" =~ ^https?:// ]]; then
+        echo -e "${RED}Invalid RPC endpoint. URL should start with http:// or https://${NC}"
+        return 1
+    fi
+    return 0
+}
+
+# Check system requirements
+check_system_requirements() {
+    show_progress "Checking system requirements"
+    
+    # Check OS
+    if [[ "$(uname)" != "Linux" ]]; then
+        show_error_and_exit "This script only works on Linux"
+    fi
+    
+    # Check minimum RAM (8GB recommended)
+    local ram_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    local ram_gb=$((ram_kb / 1024 / 1024))
+    
+    if [ "$ram_gb" -lt 4 ]; then
+        echo -e "${RED}Warning: Your system has less than 4GB RAM (${ram_gb}GB). 8GB or more is recommended for optimal performance.${NC}"
+        read -p "Continue anyway? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    fi
+    
+    # Check disk space (at least 50GB free recommended)
+    local free_disk_kb=$(df -k --output=avail "$HOME" | tail -n1)
+    local free_disk_gb=$((free_disk_kb / 1024 / 1024))
+    
+    if [ "$free_disk_gb" -lt 20 ]; then
+        echo -e "${RED}Warning: You have less than 20GB free disk space (${free_disk_gb}GB). 50GB or more is recommended.${NC}"
+        read -p "Continue anyway? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    fi
+    
+    show_success "System requirements check completed"
+}
+
 # Install dependencies
 install_dependencies() {
     show_progress "Checking system dependencies"
@@ -81,7 +133,7 @@ install_dependencies() {
     sudo apt-get update -qq
     
     # Check and install basic dependencies
-    for pkg in git curl wget build-essential nano; do
+    for pkg in git curl wget build-essential; do
         if ! dpkg -l | grep -q "ii  $pkg "; then
             show_progress "Installing $pkg"
             sudo apt-get install -y $pkg
@@ -136,7 +188,7 @@ install_dependencies() {
             sudo apt-get install -y nodejs
             show_success "Node.js upgraded to v22"
         else
-            show_success "Node.js $(node -v) already installed, skipping"
+            show_success "Node.js v$(node -v) already installed, skipping"
         fi
     fi
     
@@ -152,8 +204,89 @@ install_dependencies() {
     show_success "All dependencies installed successfully"
 }
 
-# Clone or update TriggerX repository
-setup_triggerx_repo() {
+# Get user input with validation
+get_user_input() {
+    show_progress "Configuring TriggerX Keeper"
+    
+    # Get L1 RPC endpoint
+    while true; do
+        read -p "$(echo -e "${BLUE}Enter ETH RPC (Holesky) endpoint (Alchemy/Infura/Zan.Top): ${NC}")" L1_RPC
+        if validate_rpc_endpoint "$L1_RPC"; then
+            break
+        fi
+    done
+    
+    # Get L2 RPC endpoint
+    while true; do
+        read -p "$(echo -e "${BLUE}Enter BASE RPC (Base Sepolia) endpoint: ${NC}")" L2_RPC
+        if validate_rpc_endpoint "$L2_RPC"; then
+            break
+        fi
+    done
+    
+    # Get private key with warning
+    echo -e "${RED}WARNING: Use a separate wallet with only the necessary funds. NEVER use your main wallet.${NC}"
+    while true; do
+        read -s -p "$(echo -e "${BLUE}Enter your PRIVATE KEY (EVM or ETH Private Key): ${NC}")" PRIVATE_KEY
+        echo
+        if [ -z "$PRIVATE_KEY" ]; then
+            echo -e "${RED}Private key cannot be empty.${NC}"
+            continue
+        fi
+        
+        # Add 0x prefix if missing
+        if [[ ! "$PRIVATE_KEY" =~ ^0x ]]; then
+            PRIVATE_KEY="0x$PRIVATE_KEY"
+        fi
+        
+        if validate_private_key "$PRIVATE_KEY"; then
+            break
+        fi
+    done
+    
+    # Get operator address
+    while true; do
+        read -p "$(echo -e "${BLUE}Enter your OPERATOR_ADDRESS (0x... same as your Address from Private Key): ${NC}")" OPERATOR_ADDRESS
+        if validate_eth_address "$OPERATOR_ADDRESS"; then
+            break
+        fi
+    done
+    
+    # Get port settings with defaults
+    read -p "$(echo -e "${BLUE}Enter Operator RPC port [default: 9005]: ${NC}")" OPERATOR_RPC_PORT
+    OPERATOR_RPC_PORT=${OPERATOR_RPC_PORT:-9005}
+    
+    read -p "$(echo -e "${BLUE}Enter Operator P2P port [default: 9006]: ${NC}")" OPERATOR_P2P_PORT
+    OPERATOR_P2P_PORT=${OPERATOR_P2P_PORT:-9006}
+    
+    read -p "$(echo -e "${BLUE}Enter Operator Metrics port [default: 9009]: ${NC}")" OPERATOR_METRICS_PORT
+    OPERATOR_METRICS_PORT=${OPERATOR_METRICS_PORT:-9009}
+    
+    read -p "$(echo -e "${BLUE}Enter Grafana port [default: 4000]: ${NC}")" GRAFANA_PORT
+    GRAFANA_PORT=${GRAFANA_PORT:-4000}
+    
+    # Check if ports are available
+    for port in "$OPERATOR_RPC_PORT" "$OPERATOR_P2P_PORT" "$OPERATOR_METRICS_PORT" "$GRAFANA_PORT"; do
+        if netstat -tuln 2>/dev/null | grep -q ":$port " || ss -tuln 2>/dev/null | grep -q ":$port "; then
+            echo -e "${RED}Warning: Port $port is already in use. This may cause conflicts.${NC}"
+            read -p "Continue anyway? (y/n) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
+        fi
+    done
+    
+    show_success "Configuration completed"
+}
+
+# Set up TriggerX Keeper
+setup_triggerx() {
+    # Static configuration
+    KEEPER_DIR="$HOME/triggerx"
+    REPO_URL="https://github.com/trigg3rX/triggerx-keeper-setup.git"
+    GOV_CONTRACT="0xE52De62Bf743493d3c4E1ac8db40f342FEb11fEa"
+    
     # Check if repository already exists
     if [ -d "$KEEPER_DIR" ]; then
         echo -e "${YELLOW}TriggerX directory already exists at $KEEPER_DIR${NC}"
@@ -166,6 +299,7 @@ setup_triggerx_repo() {
                 rm -rf "$KEEPER_DIR"
                 git clone "$REPO_URL" "$KEEPER_DIR"
                 cd "$KEEPER_DIR"
+                cp .env.example .env
                 ;;
             [Uu]*)
                 show_progress "Updating TriggerX repository"
@@ -186,215 +320,185 @@ setup_triggerx_repo() {
         show_progress "Cloning TriggerX repository"
         git clone "$REPO_URL" "$KEEPER_DIR"
         cd "$KEEPER_DIR"
+        cp .env.example .env
     fi
     
     show_success "Repository setup completed"
-}
 
-# Setup the .env file focusing on Peer ID
-setup_env_file() {
-    show_progress "Setting up environment configuration"
-    
-    # Make sure we're in the keeper directory
-    cd "$KEEPER_DIR"
-    
-    # First check if .env.example exists
-    if [ ! -f "$KEEPER_DIR/.env.example" ]; then
-        show_error_and_exit ".env.example file not found in $KEEPER_DIR"
-    fi
-    
-    # Copy the example file if .env doesn't exist
-    if [ ! -f "$KEEPER_DIR/.env" ]; then
-        echo -e "${BLUE}Copying .env.example to .env${NC}"
-        cp "$KEEPER_DIR/.env.example" "$KEEPER_DIR/.env"
-        show_success ".env.example copied to .env"
-    else
-        echo -e "${YELLOW}Using existing .env file${NC}"
+    # Check if .env file already exists and ask for reconfiguration
+    if [ -f "$KEEPER_DIR/.env" ] && [ "$REPO_ACTION" != "r" ]; then
+        echo -e "${YELLOW}Configuration file (.env) already exists${NC}"
+        read -p "$(echo -e "${BLUE}Would you like to reconfigure? (y/n): ${NC}")" -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            show_success "Using existing configuration"
+            return
+        fi
     fi
     
     # Get VPS IP
     show_progress "Getting public IP address"
-    PUBLIC_IPV4_ADDRESS=$(curl -s ipinfo.io/ip)
+    echo -e "${YELLOW}Running: curl -s ifconfig.me${NC}"
+    PUBLIC_IPV4_ADDRESS=$(curl -s ifconfig.me)
     echo -e "${GREEN}Your public IP: $PUBLIC_IPV4_ADDRESS${NC}"
     
-    # Update the IP in .env
-    sed -i "s|^PUBLIC_IPV4_ADDRESS=.*|PUBLIC_IPV4_ADDRESS=$PUBLIC_IPV4_ADDRESS|" "$KEEPER_DIR/.env"
-    
-    # Generate Peer ID
+    # Get Peer ID - requires manual input of private key
     show_progress "Generating peer ID"
     echo -e "${YELLOW}Running: othentic-cli node get-id --node-type attester${NC}"
-    
-    # Run the command
-    othentic-cli node get-id --node-type attester
+    echo -e "${BLUE}Please enter your private key when prompted by the othentic-cli tool...${NC}"
+    PEER_ID=$(othentic-cli node get-id --node-type attester)
     echo -e "${GREEN}Your peer ID: $PEER_ID${NC}"
     
-    # Update Peer ID in .env
-    sed -i "s|^PEER_ID=.*|PEER_ID=$PEER_ID|" "$KEEPER_DIR/.env"
+    # Create .env file
+    show_progress "Creating .env configuration file"
+    cat > .env <<EOF
+L1_RPC=$L1_RPC
+L2_RPC=$L2_RPC
+PRIVATE_KEY=$PRIVATE_KEY
+OPERATOR_ADDRESS=$OPERATOR_ADDRESS
+PUBLIC_IPV4_ADDRESS=$PUBLIC_IPV4_ADDRESS
+PEER_ID=$PEER_ID
+OPERATOR_RPC_PORT=$OPERATOR_RPC_PORT
+OPERATOR_P2P_PORT=$OPERATOR_P2P_PORT
+OPERATOR_METRICS_PORT=$OPERATOR_METRICS_PORT
+GRAFANA_PORT=$GRAFANA_PORT
+L1_CHAIN=17000
+L2_CHAIN=84532
+AVS_GOVERNANCE_ADDRESS=$GOV_CONTRACT
+ATTESTATION_CENTER_ADDRESS=0x8256F235Ed6445fb9f8177a847183A8C8CD97cF1
+PINATA_API_KEY=3e1b278b99bd95877625
+PINATA_SECRET_API_KEY=8e41503276cd848b4f95fcde1f30e325652e224e7233dcc1910e5a226675ace4
+IPFS_HOST=apricot-voluntary-fowl-585.mypinata.cloud
+OTHENTIC_BOOTSTRAP_ID=12D3KooWBNFG1QjuF3UKAKvqhdXcxh9iBmj88cM5eU2EK5Pa91KB
+OTHENTIC_CLIENT_RPC_ADDRESS=https://aggregator.triggerx.network
+HEALTH_IP_ADDRESS=https://health.triggerx.network
+EOF
     
-    show_success "Peer ID generated and updated in .env file"
+    show_success "Environment configuration created"
 }
 
-# Start TriggerX services
-start_triggerx_services() {
-    cd "$KEEPER_DIR"
+# Check service status
+check_service_status() {
+    local service_name="$1"
     
-    show_progress "Installing TriggerX services"
-    ./triggerx.sh install
+    if docker ps --format '{{.Names}}' | grep -q "$service_name"; then
+        return 0 # Service is running
+    else
+        return 1 # Service is not running
+    fi
+}
+
+# Install and start services
+start_services() {
+    # Check if services are already running
+    if check_service_status "triggerx-keeper"; then
+        echo -e "${YELLOW}TriggerX Keeper is already running${NC}"
+        read -p "$(echo -e "${BLUE}Would you like to restart the services? (y/n): ${NC}")" -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            show_progress "Stopping TriggerX services"
+            ./triggerx.sh stop
+            
+            show_progress "Installing and restarting TriggerX services"
+            ./triggerx.sh install
+            ./triggerx.sh start
+        else
+            show_success "Keeping existing TriggerX services running"
+        fi
+    else
+        show_progress "Installing TriggerX services"
+        ./triggerx.sh install
+        
+        show_progress "Starting TriggerX node"
+        ./triggerx.sh start
+    fi
     
-    show_progress "Starting TriggerX node"
-    ./triggerx.sh start
-    
-    show_progress "Starting monitoring services"
-    ./triggerx.sh start-mon
+    # Check if monitoring services are running
+    if check_service_status "triggerx-prometheus" || check_service_status "triggerx-grafana"; then
+        echo -e "${YELLOW}Monitoring services are already running${NC}"
+        read -p "$(echo -e "${BLUE}Would you like to restart the monitoring services? (y/n): ${NC}")" -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            show_progress "Stopping monitoring services"
+            ./triggerx.sh stop-mon
+            
+            show_progress "Starting monitoring services"
+            ./triggerx.sh start-mon
+        else
+            show_success "Keeping existing monitoring services running"
+        fi
+    else
+        show_progress "Starting monitoring services"
+        ./triggerx.sh start-mon
+    fi
     
     show_success "TriggerX Keeper node is now running!"
 }
 
-# Register with TriggerX
-register_triggerx() {
-    cd "$KEEPER_DIR"
+# Display registration guide
+display_registration_guide() {
+    # Get IP address and Grafana port from .env file if not set
+    if [ -z "$PUBLIC_IPV4_ADDRESS" ]; then
+        PUBLIC_IPV4_ADDRESS=$(grep "PUBLIC_IPV4_ADDRESS" .env | cut -d '=' -f2)
+    fi
     
+    if [ -z "$GRAFANA_PORT" ]; then
+        GRAFANA_PORT=$(grep "GRAFANA_PORT" .env | cut -d '=' -f2)
+    fi
+    
+    if [ -z "$GOV_CONTRACT" ]; then
+        GOV_CONTRACT="0xE52De62Bf743493d3c4E1ac8db40f342FEb11fEa"
+    fi
+    
+    echo ""
     echo -e "${CYAN}=====================================================${NC}"
-    echo -e "${GREEN}TriggerX Keeper Registration${NC}"
+    echo -e "${GREEN}✅ TriggerX Keeper Node Setup Complete!${NC}"
     echo -e "${CYAN}=====================================================${NC}"
     echo ""
-    
-    echo -e "${YELLOW}1️⃣ Register Operator on EigenLayer:${NC}"
+    echo -e "${YELLOW}📝 Next Steps for Registration:${NC}"
+    echo ""
+    echo -e "${BLUE}1️⃣ Register Operator on EigenLayer:${NC}"
     echo -e "   ${GREEN}othentic-cli operator register-eigenlayer${NC}"
     echo ""
-    
-    read -p "$(echo -e "${BLUE}Would you like to register on EigenLayer now? (y/n): ${NC}")" -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        othentic-cli operator register-eigenlayer
-    fi
-    
+    echo -e "   When prompted, enter:"
+    echo -e "     - Private Key"
+    echo -e "     - Operator Name, Description, Website, Logo, Twitter"
+    echo -e "     - AVS Governance Address: ${GREEN}$GOV_CONTRACT${NC}"
     echo ""
-    echo -e "${YELLOW}2️⃣ Deposit into strategy (e.g. stETH):${NC}"
+    echo -e "${BLUE}2️⃣ Deposit into strategy (e.g. stETH):${NC}"
     echo -e "   ${GREEN}othentic-cli operator deposit --staking-contract stETH --amount 0.001 --convert 0.002${NC}"
     echo ""
-    
-    read -p "$(echo -e "${BLUE}Would you like to deposit into strategy now? (y/n): ${NC}")" -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        othentic-cli operator deposit --staking-contract stETH --amount 0.001 --convert 0.002
-    fi
-    
-    echo ""
-    echo -e "${YELLOW}3️⃣ Register with TriggerX:${NC}"
+    echo -e "${BLUE}3️⃣ Register with TriggerX:${NC}"
     echo -e "   ${GREEN}othentic-cli operator register${NC}"
-    echo ""
-    
-    read -p "$(echo -e "${BLUE}Would you like to register with TriggerX now? (y/n): ${NC}")" -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        othentic-cli operator register
-    fi
-    
-    show_success "Registration steps completed"
-}
-
-# Show node status
-show_node_status() {
-    cd "$KEEPER_DIR"
-    
-    echo -e "${CYAN}=====================================================${NC}"
-    echo -e "${GREEN}TriggerX Keeper Status${NC}"
-    echo -e "${CYAN}=====================================================${NC}"
-    echo ""
-    
-    show_progress "Checking node status"
-    ./triggerx.sh status
-    
-    # Get IP address and Grafana port from .env file
-    local grafana_port=$(grep "GRAFANA_PORT" .env | cut -d '=' -f2)
-    local pub_ip=$(grep "PUBLIC_IPV4_ADDRESS" .env | cut -d '=' -f2)
-    
+    echo -e "   Use same PRIVATE_KEY and SIGNING_KEY (can be same on testnet)"
     echo ""
     echo -e "${BLUE}🌐 Access Grafana Dashboard:${NC}"
-    echo -e "   ${GREEN}http://$pub_ip:$grafana_port${NC}"
+    echo -e "   ${GREEN}http://$PUBLIC_IPV4_ADDRESS:$GRAFANA_PORT${NC}"
     echo ""
-    
-    read -p "Press Enter to continue..."
-}
-
-# Display help information
-show_help() {
-    clear
-    echo -e "${CYAN}=====================================================${NC}"
-    echo -e "${GREEN}TriggerX Keeper Help${NC}"
-    echo -e "${CYAN}=====================================================${NC}"
+    echo -e "${YELLOW}💡 For more information and troubleshooting:${NC}"
+    echo -e "   ${GREEN}https://triggerx.gitbook.io/triggerx-docs/join-as-keeper${NC}"
+    echo -e "   ${GREEN}https://docs.othentic.xyz/main/avs-framework/othentic-cli/private-key-management${NC}"
     echo ""
+    echo -e "${CYAN}=====================================================${NC}"
     echo -e "${BLUE}🔄 Node Management Commands:${NC}"
     echo -e "   ${GREEN}cd ~/triggerx && ./triggerx.sh status${NC} (Check node status)"
     echo -e "   ${GREEN}cd ~/triggerx && ./triggerx.sh stop${NC} (Stop node)"
     echo -e "   ${GREEN}cd ~/triggerx && ./triggerx.sh start${NC} (Start node)"
     echo -e "   ${GREEN}cd ~/triggerx && ./triggerx.sh restart${NC} (Restart node)"
-    echo ""
-    echo -e "${BLUE}📝 Registration Documentation:${NC}"
-    echo -e "   ${GREEN}https://triggerx.gitbook.io/triggerx-docs/join-as-keeper${NC}"
-    echo -e "   ${GREEN}https://docs.othentic.xyz/main/avs-framework/othentic-cli/private-key-management${NC}"
-    echo ""
-    read -p "Press Enter to continue..."
+    echo -e "${CYAN}=====================================================${NC}"
 }
 
-# Main menu
-display_main_menu() {
-    while true; do
-        display_banner
-        echo -e "${BLUE}Main Menu:${NC}"
-        echo -e "  ${GREEN}1.${NC} Install Dependencies"
-        echo -e "  ${GREEN}2.${NC} Setup TriggerX Node"
-        echo -e "  ${GREEN}3.${NC} Configure .env File and Generate Peer ID"
-        echo -e "  ${GREEN}4.${NC} Register TriggerX Node"
-        echo -e "  ${GREEN}5.${NC} Start TriggerX Services"
-        echo -e "  ${GREEN}6.${NC} Show Node Status"
-        echo -e "  ${GREEN}7.${NC} Help"
-        echo -e "  ${GREEN}0.${NC} Exit"
-        echo ""
-        read -p "$(echo -e "${BLUE}Please select an option:${NC} ")" option
-        
-        case $option in
-            1)
-                install_dependencies
-                read -p "Press Enter to continue..."
-                ;;
-            2)
-                setup_triggerx_repo
-                read -p "Press Enter to continue..."
-                ;;
-            3)
-                setup_env_file
-                read -p "Press Enter to continue..."
-                ;;
-            4)
-                register_triggerx
-                ;;
-            5)
-                start_triggerx_services
-                read -p "Press Enter to continue..."
-                ;;
-            6)
-                show_node_status
-                ;;
-            7)
-                show_help
-                ;;
-            0)
-                echo -e "${GREEN}Thank you for using TriggerX Keeper Menu Installer!${NC}"
-                exit 0
-                ;;
-            *)
-                echo -e "${RED}Invalid option. Please try again.${NC}"
-                sleep 1
-                ;;
-        esac
-    done
-}
-
-# Main function to start the menu
+# Main function
 main() {
-    display_main_menu
+    display_banner
+    check_system_requirements
+    install_dependencies
+    get_user_input
+    setup_triggerx
+    start_services
+    display_registration_guide
 }
 
 # Run the script
